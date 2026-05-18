@@ -1,7 +1,7 @@
 #!/bin/bash
-# DIY-2.sh - 克隆额外插件 & 修改固件参数
+# DIY-2.sh for OK2.config (完整版) - 管理地址改为 10.1.1.1
 
-set -e  # 遇到错误即退出
+set -e
 
 # ======================= 1. 克隆额外插件 =======================
 git clone --depth 1 https://github.com/WukongMaster/luci-app-poweroff.git package/luci-app-poweroff
@@ -11,9 +11,10 @@ git clone --depth 1 -b master https://github.com/jerrykuku/luci-theme-argon.git 
 git clone --depth 1 https://github.com/jerrykuku/luci-app-argon-config.git package/luci-app-argon-config
 
 # ======================= 2. 修改固件参数 =======================
-sed -i 's/192.168.1.1/192.168.2.1/g' package/base-files/files/bin/config_generate
+# 修改默认管理 IP 为 10.1.1.1
+sed -i 's/192.168.1.1/10.1.1.1/g' package/base-files/files/bin/config_generate
 
-# 删除默认密码（如果文件存在）
+# 删除 root 默认密码
 sed -i '/CYXluq4wUazHjmCDBCqXF/d' package/lean/default-settings/files/zzz-default-settings 2>/dev/null || true
 
 # 修改默认主题为 argon
