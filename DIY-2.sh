@@ -1,11 +1,14 @@
 #!/bin/bash
-# DIY-2.sh for OK2.config (完整版) - 管理地址改为 10.1.1.1
+# DIY-2 for OK2.config (完整版)
+# 功能：克隆额外插件 + 修改固件参数
 
 set -e
 
 # ======================= 1. 克隆额外插件 =======================
+# 电源关机插件
 git clone --depth 1 https://github.com/WukongMaster/luci-app-poweroff.git package/luci-app-poweroff
 
+# Argon 主题及配置（覆盖自带旧版）
 rm -rf package/feeds/luci/luci-theme-argon
 git clone --depth 1 -b master https://github.com/jerrykuku/luci-theme-argon.git package/luci-theme-argon
 git clone --depth 1 https://github.com/jerrykuku/luci-app-argon-config.git package/luci-app-argon-config
