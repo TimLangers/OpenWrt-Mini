@@ -1,17 +1,21 @@
 #!/bin/bash
-# DIY-1 for OK2.config (完整版)
-# 功能：添加第三方 feeds 源
+#
+# Copyright (c) 2019-2020 P3TERX <https://p3terx.com>
+#
+# This is free software, licensed under the MIT License.
+# See /LICENSE for more information.
+#
+# https://github.com/P3TERX/Actions-OpenWrt
+# File name: diy-part1.sh
+# Description: OpenWrt DIY script part 1 (Before Update feeds)
+#
 
-FEEDS_FILE="feeds.conf.default"
+# 解释或添加 Feed 源
+# sed -i 's/^#\(.*helloworld\)/\1/' feeds.conf.default
+# add feed lines
+# echo 'src-git helloworld https://github.com/fw876/helloworld' >>feeds.conf.default
+# echo 'src-git passwall https://github.com/xiaorouji/openwrt-passwall' >>feeds.conf.default
 
-# 清理可能冲突的旧条目
-sed -i '/helloworld/d' $FEEDS_FILE
-sed -i '/passwall/d' $FEEDS_FILE
-sed -i '/openclash/d' $FEEDS_FILE
-
-# 添加 OpenClash 源（dev 分支）
-echo "src-git openclash https://github.com/vernesong/OpenClash.git;dev" >> $FEEDS_FILE
-
-# 添加 PassWall 及其依赖包源（immortalwrt 维护）
-echo "src-git passwall https://github.com/immortalwrt/openwrt-passwall.git;master" >> $FEEDS_FILE
-echo "src-git passwall_packages https://github.com/immortalwrt/openwrt-passwall-packages.git;master" >> $FEEDS_FILE
+# 添加 jerrykuku 的 Argon 最新主题源码
+git clone -b 18.06 https://github.com/jerrykuku/luci-theme-argon.git package/luci-theme-argon
+git clone https://github.com/jerrykuku/luci-app-argon-config.git package/luci-app-argon-config
