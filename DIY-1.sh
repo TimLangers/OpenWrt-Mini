@@ -1,15 +1,16 @@
 #!/bin/bash
-# 此脚本功能：配置软件源 (Feeds)
-# =======================================================================================
+# DIY-1.sh - 配置第三方 feeds 源（追加模式）
 
-# 1. 清理可能冲突的旧源
-sed -i '/helloworld/d' feeds.conf.default
-sed -i '/passwall/d' feeds.conf.default
-sed -i '/openclash/d' feeds.conf.default
+FEEDS_FILE="feeds.conf.default"
 
-# 2. 添加 OpenClash (dev 分支)
-echo "src-git openclash https://github.com/vernesong/OpenClash.git;dev" >> feeds.conf.default
+# 1. 备份原文件（可选）
+cp $FEEDS_FILE ${FEEDS_FILE}.bak
 
-# 3. 添加最新版 PassWall (方法1) —— 使用 Openwrt-Passwall 仓库
-echo "src-git passwall_packages https://github.com/Openwrt-Passwall/openwrt-passwall-packages.git;main" >> feeds.conf.default
-echo "src-git passwall_luci https://github.com/Openwrt-Passwall/openwrt-passwall.git;main" >> feeds.conf.default
+# 2. 清理可能存在的重复或冲突条目（精确删除）
+sed -i '/openclash/d' $FEEDS_FILE
+sed -i '/passwall[^_]/d' $FEEDS_FILE   # 删除 passwall 源（非 passwall_packages）
+
+# 3. 添加新源（如果尚未存在）
+grep -q "openclash" $FEEDS_FILE || echo "src-git openclash https://github.com/vernesong/OpenClash.git;dev" >> $FEEDS_FILE
+grep -q "passwall https://" $FEEDS_FILE || echo "src-git passwall https://github.com/immortalwrt/openwrt-passwall.git;master" >> $FEEDS_FILE
+grep -q "passwall_packages" $FEEDS_FILE || echo "src-git passwall_packages https://github.com/immortalwrt/openwrt-passwall-packages.git;master" >> $FEEDS_FILE
