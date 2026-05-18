@@ -1,16 +1,12 @@
 #!/bin/bash
-# DIY-1.sh - 配置第三方 feeds 源（追加模式）
+# DIY-1.sh for OK1.config (精简版)
+# 功能：清理可能过时的第三方源，避免 feeds update 报错
 
 FEEDS_FILE="feeds.conf.default"
 
-# 1. 备份原文件（可选）
-cp $FEEDS_FILE ${FEEDS_FILE}.bak
+# 1. 注释掉或删除已知可能出错的源（精确匹配行）
+sed -i '/helloworld/s/^/#/' $FEEDS_FILE
+sed -i '/passwall/s/^/#/' $FEEDS_FILE
+sed -i '/openclash/s/^/#/' $FEEDS_FILE
 
-# 2. 清理可能存在的重复或冲突条目（精确删除）
-sed -i '/openclash/d' $FEEDS_FILE
-sed -i '/passwall[^_]/d' $FEEDS_FILE   # 删除 passwall 源（非 passwall_packages）
-
-# 3. 添加新源（如果尚未存在）
-grep -q "openclash" $FEEDS_FILE || echo "src-git openclash https://github.com/vernesong/OpenClash.git;dev" >> $FEEDS_FILE
-grep -q "passwall https://" $FEEDS_FILE || echo "src-git passwall https://github.com/immortalwrt/openwrt-passwall.git;master" >> $FEEDS_FILE
-grep -q "passwall_packages" $FEEDS_FILE || echo "src-git passwall_packages https://github.com/immortalwrt/openwrt-passwall-packages.git;master" >> $FEEDS_FILE
+# 2. 不添加任何第三方源（OK1 不需要）
