@@ -74,26 +74,35 @@ jobs:
         sudo mkdir -p /workdir
         sudo chown $USER:$GROUPS /workdir
 
-    # 修复版：发送编译开始通知
     - name: 发送编译开始通知（含服务器信息）
       run: |
-        MSG="🚀 OpenWrt 编译开始 🚀\n\n"
-        MSG="${MSG}📅 时间：$(date '+%Y-%m-%d %H:%M:%S')\n"
-        MSG="${MSG}🖥️ 编译服务器信息：\n"
-        MSG="${MSG}  - CPU：${{ env.CPU_MODEL }}\n"
-        MSG="${MSG}  - 物理数量：${{ env.CPU_PHYSICAL }}\n"
-        MSG="${MSG}  - 核心数：${{ env.CPU_CORES }}\n"
-        MSG="${MSG}  - 内存：${{ env.MEM_INFO }}\n"
-        MSG="${MSG}  - 磁盘使用：$(df -h / | awk 'NR==2 {print $4}') 可用\n\n"
-        MSG="${MSG}📦 配置文件：${{ env.CONFIG_FILE }}\n"
-        MSG="${MSG}🔧 源码分支：${{ env.REPO_BRANCH }}\n\n"
-        MSG="${MSG}编译进行中，请稍候..."
+        read -r -d '' MSG << 'EOF' || true
+        🚀 *OpenWrt 编译开始* 🚀
+
+        📅 *时间*：$(date '+%Y-%m-%d %H:%M:%S')
+        🖥️ *编译服务器信息*：
+          • CPU：${{ env.CPU_MODEL }}
+          • 物理数量：${{ env.CPU_PHYSICAL }}
+          • 核心数：${{ env.CPU_CORES }}
+          • 内存：${{ env.MEM_INFO }}
+          • 磁盘使用：$(df -h / | awk 'NR==2 {print $4}') 可用
+
+        📦 *配置文件*：${{ env.CONFIG_FILE }}
+        🔧 *源码分支*：${{ env.REPO_BRANCH }}
+
+        编译进行中，请稍候\.\.\.
+        EOF
 
         JSON_PAYLOAD=$(jq -n \
           --arg chat_id "${{ secrets.TELEGRAM_CHAT_ID }}" \
           --arg text "$MSG" \
           --argjson preview false \
-          '{chat_id: $chat_id, text: $text, disable_web_page_preview: $preview}')
+          '{
+            chat_id: $chat_id, 
+            text: $text, 
+            parse_mode: "MarkdownV2", 
+            disable_web_page_preview: $preview
+          }')
 
         curl -s -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
           -H "Content-Type: application/json" \
@@ -203,43 +212,57 @@ jobs:
         body_path: release.txt
         files: ${{ env.FIRMWARE }}/*
 
-    # 修复版：发送编译结果通知（成功与失败双通道集成）
     - name: 发送编译结果通知 (Telegram)
       if: always()
       run: |
         if [ "${{ steps.compile.outputs.status }}" = "success" ]; then
-          # 成功通知
           RELEASE_URL="https://github.com/${{ github.repository }}/releases/tag/${{ env.TAG_TIME }}"
-          MSG="✅ OpenWrt 编译成功！ ✅\n\n"
-          MSG="${MSG}📅 完成时间：$(date '+%Y-%m-%d %H:%M:%S')\n"
-          MSG="${MSG}📦 固件名称：OpenWrt-Mini${{ env.DEVICE_NAME }}${{ env.FILE_DATE }}\n"
-          MSG="${MSG}🔗 下载地址：${RELEASE_URL}\n"
-          MSG="${MSG}🌐 管理地址：10.1.1.1\n"
-          MSG="${MSG}🔑 默认密码：无\n\n"
-          MSG="${MSG}🖥️ 服务器信息：\n"
-          MSG="${MSG}  - CPU：${{ env.CPU_MODEL }}\n"
-          MSG="${MSG}  - 核心数：${{ env.CPU_CORES }}\n"
-          MSG="${MSG}  - 内存：${{ env.MEM_INFO }}\n\n"
-          MSG="${MSG}固件已发布，请及时下载。"
+          
+          read -r -d '' MSG << EOF || true
+        ✅ *OpenWrt 编译成功！* ✅
+
+        📅 *完成时间*：$(date '+%Y-%m-%d %H:%M:%S')
+        📦 *固件名称*：OpenWrt\-Mini${{ env.DEVICE_NAME }}${{ env.FILE_DATE }}
+        🌐 *管理地址*：10\.1\.1\.1
+        🔑 *默认密码*：无
+
+        🖥️ *服务器信息*：
+          • CPU：${{ env.CPU_MODEL }}
+          • 核心数：${{ env.CPU_CORES }}
+          • 内存：${{ env.MEM_INFO }}
+
+        🔗 [点击此处下载固件](${RELEASE_URL})
+        EOF
+        
         else
-          # 失败或取消通知
           RUN_URL="https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-          MSG="❌ OpenWrt 编译失败！ ❌\n\n"
-          MSG="${MSG}📅 时间：$(date '+%Y-%m-%d %H:%M:%S')\n"
-          MSG="${MSG}📦 配置文件：${{ env.CONFIG_FILE }}\n"
-          MSG="${MSG}🔧 源码分支：${{ env.REPO_BRANCH }}\n\n"
-          MSG="${MSG}🖥️ 最后使用的服务器信息：\n"
-          MSG="${MSG}  - CPU：${{ env.CPU_MODEL }}\n"
-          MSG="${MSG}  - 核心数：${{ env.CPU_CORES }}\n"
-          MSG="${MSG}  - 内存：${{ env.MEM_INFO }}\n\n"
-          MSG="${MSG}请查看 Actions 日志：${RUN_URL}"
+          
+          read -r -d '' MSG << EOF || true
+        ❌ *OpenWrt 编译失败！* ❌
+
+        📅 *时间*：$(date '+%Y-%m-%d %H:%M:%S')
+        📦 *配置文件*：${{ env.CONFIG_FILE }}
+        🔧 *源码分支*：${{ env.REPO_BRANCH }}
+
+        🖥️ *最后使用的服务器信息*：
+          • CPU：${{ env.CPU_MODEL }}
+          • 核心数：${{ env.CPU_CORES }}
+          • 内存：${{ env.MEM_INFO }}
+
+        ⚠️ [点击查看 Actions 错误日志](${RUN_URL})
+        EOF
         fi
 
         JSON_PAYLOAD=$(jq -n \
           --arg chat_id "${{ secrets.TELEGRAM_CHAT_ID }}" \
           --arg text "$MSG" \
           --argjson preview false \
-          '{chat_id: $chat_id, text: $text, disable_web_page_preview: $preview}')
+          '{
+            chat_id: $chat_id, 
+            text: $text, 
+            parse_mode: "MarkdownV2", 
+            disable_web_page_preview: $preview
+          }')
 
         curl -s -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
           -H "Content-Type: application/json" \
