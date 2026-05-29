@@ -15,12 +15,12 @@ env:
   UPLOAD_FIRMWARE: true
   UPLOAD_RELEASE: true
   TZ: Asia/Shanghai
+
 jobs:
   build:
     runs-on: ubuntu-22.04
 
     steps:
-    
     - name: 检查项目分支
       uses: actions/checkout@main
 
@@ -43,12 +43,12 @@ jobs:
         echo "--------------------------CPU信息--------------------------"
         CPU_PHYSICAL=$(cat /proc/cpuinfo | grep "physical id" | sort | uniq | wc -l)
         CPU_CORES=$(nproc)
-        CPU_MODEL=$(cat /proc/cpuinfo | grep -m1 name | awk -F: '{print $2}')
+        CPU_MODEL=$(cat /proc/cpuinfo | grep -m1 name | awk -F: '{print $2}' | sed 's/^[ \t]*//')
         echo "CPU物理数量: $CPU_PHYSICAL"
         echo "CPU核心数量: $CPU_CORES"
         echo -e "CPU型号信息:$CPU_MODEL\n"
         echo "--------------------------内存信息--------------------------"
-        MEM_INFO=$(sudo lshw -short -C memory | grep GiB)
+        MEM_INFO=$(sudo lshw -short -C memory | grep GiB | head -1 | sed 's/^[ \t]*//')
         echo "已安装内存详细信息:"
         echo -e "$MEM_INFO\n"
         echo "--------------------------硬盘信息--------------------------"
@@ -58,7 +58,7 @@ jobs:
         echo "CPU_PHYSICAL=$CPU_PHYSICAL" >> $GITHUB_ENV
         echo "CPU_CORES=$CPU_CORES" >> $GITHUB_ENV
         echo "CPU_MODEL=$CPU_MODEL" >> $GITHUB_ENV
-        echo "MEM_INFO=$(echo "$MEM_INFO" | head -1)" >> $GITHUB_ENV
+        echo "MEM_INFO=$MEM_INFO" >> $GITHUB_ENV
 
     - name: 安装编译环境
       env:
@@ -67,12 +67,37 @@ jobs:
         sudo rm -rf /etc/apt/sources.list.d/* /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
         sudo docker image prune --all --force
         sudo -E apt-get -qq update
-        sudo -E apt-get -qq install ack antlr3 asciidoc autoconf automake autopoint binutils bison build-essential bzip2 ccache cmake cpio curl device-tree-compiler fastjar flex gawk gettext gcc-multilib g++-multilib git gperf haveged help2man intltool libc6-dev-i386 libelf-dev libfuse-dev libglib2.0-dev libgmp3-dev libltdl-dev libmpc-dev libmpfr-dev libncurses5-dev libncursesw5-dev libpython3-dev libreadline-dev libssl-dev libtool lrzsz mkisofs msmtp ninja-build p7zip p7zip-full patch pkgconf python2.7 python3 python3-pyelftools python3-setuptools qemu-utils rsync scons squashfs-tools subversion swig texinfo uglifyjs upx-ucl unzip vim wget xmlto xxd zlib1g-dev
+        sudo -E apt-get -qq install ack antlr3 asciidoc autoconf automake autopoint binutils bison build-essential bzip2 ccache cmake cpio curl device-tree-compiler fastjar flex gawk gettext gcc-multilib g++-multilib git gperf haveged help2man intltool libc6-dev-i386 libelf-dev libfuse-dev libglib2.0-dev libgmp3-dev libltdl-dev libmpc-dev libmpfr-dev libncurses5-dev libncursesw5-dev libpython3-dev libreadline-dev libssl-dev libtool lrzsz mkisofs msmtp ninja-build p7zip p7zip-full patch pkgconf python2.7 python3 python3-pyelftools python3-setuptools qemu-utils rsync scons squashfs-tools subversion swig texinfo uglifyjs upx-ucl unzip vim wget xmlto xxd zlib1g-dev jq
         sudo -E apt-get -qq autoremove --purge
         sudo -E apt-get -qq clean
         sudo timedatectl set-timezone "$TZ"
         sudo mkdir -p /workdir
         sudo chown $USER:$GROUPS /workdir
+
+    # 修复版：发送编译开始通知
+    - name: 发送编译开始通知（含服务器信息）
+      run: |
+        MSG="🚀 OpenWrt 编译开始 🚀\n\n"
+        MSG="${MSG}📅 时间：$(date '+%Y-%m-%d %H:%M:%S')\n"
+        MSG="${MSG}🖥️ 编译服务器信息：\n"
+        MSG="${MSG}  - CPU：${{ env.CPU_MODEL }}\n"
+        MSG="${MSG}  - 物理数量：${{ env.CPU_PHYSICAL }}\n"
+        MSG="${MSG}  - 核心数：${{ env.CPU_CORES }}\n"
+        MSG="${MSG}  - 内存：${{ env.MEM_INFO }}\n"
+        MSG="${MSG}  - 磁盘使用：$(df -h / | awk 'NR==2 {print $4}') 可用\n\n"
+        MSG="${MSG}📦 配置文件：${{ env.CONFIG_FILE }}\n"
+        MSG="${MSG}🔧 源码分支：${{ env.REPO_BRANCH }}\n\n"
+        MSG="${MSG}编译进行中，请稍候..."
+
+        JSON_PAYLOAD=$(jq -n \
+          --arg chat_id "${{ secrets.TELEGRAM_CHAT_ID }}" \
+          --arg text "$MSG" \
+          --argjson preview false \
+          '{chat_id: $chat_id, text: $text, disable_web_page_preview: $preview}')
+
+        curl -s -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
+          -H "Content-Type: application/json" \
+          -d "$JSON_PAYLOAD"
 
     - name: 克隆固件源码
       working-directory: /workdir
@@ -171,41 +196,54 @@ jobs:
       uses: softprops/action-gh-release@v2
       if: steps.tag.outputs.status == 'success' && !cancelled()
       env:
-        GITHUB_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
         name: ${{ env.FILE_TIME }} -OpenWrt-6.12-合集版
         tag_name: ${{ steps.tag.outputs.release_tag }}
         body_path: release.txt
         files: ${{ env.FIRMWARE }}/*
 
-    # Telegram 通知（优化了缩进和续行符）
-    - name: 发送编译开始通知（含服务器信息）
+    # 修复版：发送编译结果通知（成功与失败双通道集成）
+    - name: 发送编译结果通知 (Telegram)
       if: always()
       run: |
-        MESSAGE="🚀 **OpenWrt 编译开始** 🚀%0A%0A📅 时间：$(date '+%Y-%m-%d %H:%M:%S')%0A🖥️ 编译服务器信息：%0A  - CPU：${{ env.CPU_MODEL }}%0A  - 物理数量：${{ env.CPU_PHYSICAL }}%0A  - 核心数：${{ env.CPU_CORES }}%0A  - 内存：${{ env.MEM_INFO }}%0A  - 磁盘使用：$(df -h / | awk 'NR==2 {print $4}') 可用%0A%0A📦 配置文件：${{ env.CONFIG_FILE }}%0A🔧 源码分支：${{ env.REPO_BRANCH }}%0A%0A编译进行中，请稍候..."
-        curl -s -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
-          -d chat_id="${{ secrets.TELEGRAM_CHAT_ID }}" \
-          -d text="$MESSAGE" \
-          -d parse_mode="Markdown"
+        if [ "${{ steps.compile.outputs.status }}" = "success" ]; then
+          # 成功通知
+          RELEASE_URL="https://github.com/${{ github.repository }}/releases/tag/${{ env.TAG_TIME }}"
+          MSG="✅ OpenWrt 编译成功！ ✅\n\n"
+          MSG="${MSG}📅 完成时间：$(date '+%Y-%m-%d %H:%M:%S')\n"
+          MSG="${MSG}📦 固件名称：OpenWrt-Mini${{ env.DEVICE_NAME }}${{ env.FILE_DATE }}\n"
+          MSG="${MSG}🔗 下载地址：${RELEASE_URL}\n"
+          MSG="${MSG}🌐 管理地址：10.1.1.1\n"
+          MSG="${MSG}🔑 默认密码：无\n\n"
+          MSG="${MSG}🖥️ 服务器信息：\n"
+          MSG="${MSG}  - CPU：${{ env.CPU_MODEL }}\n"
+          MSG="${MSG}  - 核心数：${{ env.CPU_CORES }}\n"
+          MSG="${MSG}  - 内存：${{ env.MEM_INFO }}\n\n"
+          MSG="${MSG}固件已发布，请及时下载。"
+        else
+          # 失败或取消通知
+          RUN_URL="https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          MSG="❌ OpenWrt 编译失败！ ❌\n\n"
+          MSG="${MSG}📅 时间：$(date '+%Y-%m-%d %H:%M:%S')\n"
+          MSG="${MSG}📦 配置文件：${{ env.CONFIG_FILE }}\n"
+          MSG="${MSG}🔧 源码分支：${{ env.REPO_BRANCH }}\n\n"
+          MSG="${MSG}🖥️ 最后使用的服务器信息：\n"
+          MSG="${MSG}  - CPU：${{ env.CPU_MODEL }}\n"
+          MSG="${MSG}  - 核心数：${{ env.CPU_CORES }}\n"
+          MSG="${MSG}  - 内存：${{ env.MEM_INFO }}\n\n"
+          MSG="${MSG}请查看 Actions 日志：${RUN_URL}"
+        fi
 
-    - name: 发送编译成功通知（含固件链接）
-      if: success() && steps.compile.outputs.status == 'success'
-      run: |
-        RELEASE_URL="https://github.com/${{ github.repository }}/releases/tag/${{ env.TAG_TIME }}"
-        MESSAGE="✅ **OpenWrt 编译成功！** ✅%0A%0A📅 完成时间：$(date '+%Y-%m-%d %H:%M:%S')%0A📦 固件名称：OpenWrt-Mini${{ env.DEVICE_NAME }}${{ env.FILE_DATE }}%0A🔗 下载地址：$RELEASE_URL%0A🌐 管理地址：10.1.1.1%0A🔑 默认密码：无%0A%0A🖥️ 服务器信息：%0A  - CPU：${{ env.CPU_MODEL }}%0A  - 核心数：${{ env.CPU_CORES }}%0A  - 内存：${{ env.MEM_INFO }}%0A%0A固件已发布，请及时下载。"
-        curl -s -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
-          -d chat_id="${{ secrets.TELEGRAM_CHAT_ID }}" \
-          -d text="$MESSAGE" \
-          -d parse_mode="Markdown"
+        JSON_PAYLOAD=$(jq -n \
+          --arg chat_id "${{ secrets.TELEGRAM_CHAT_ID }}" \
+          --arg text "$MSG" \
+          --argjson preview false \
+          '{chat_id: $chat_id, text: $text, disable_web_page_preview: $preview}')
 
-    - name: 发送编译失败通知
-      if: failure() || cancelled()
-      run: |
-        MESSAGE="❌ **OpenWrt 编译失败！** ❌%0A%0A📅 时间：$(date '+%Y-%m-%d %H:%M:%S')%0A📦 配置文件：${{ env.CONFIG_FILE }}%0A🔧 源码分支：${{ env.REPO_BRANCH }}%0A%0A🖥️ 最后使用的服务器信息：%0A  - CPU：${{ env.CPU_MODEL }}%0A  - 核心数：${{ env.CPU_CORES }}%0A  - 内存：${{ env.MEM_INFO }}%0A%0A请查看 Actions 日志：[点击这里](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})"
         curl -s -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
-          -d chat_id="${{ secrets.TELEGRAM_CHAT_ID }}" \
-          -d text="$MESSAGE" \
-          -d parse_mode="Markdown"
+          -H "Content-Type: application/json" \
+          -d "$JSON_PAYLOAD"
 
     - name: 清理编译流程
       uses: Mattraks/delete-workflow-runs@main
