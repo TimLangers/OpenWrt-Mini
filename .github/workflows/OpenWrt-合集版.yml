@@ -90,7 +90,7 @@ jobs:
         📦 *配置文件*：${{ env.CONFIG_FILE }}
         🔧 *源码分支*：${{ env.REPO_BRANCH }}
 
-        编译进行中，请稍候\.\.\.
+        编译进行中，请稍候...
         EOF
 
         JSON_PAYLOAD=$(jq -n \
@@ -100,7 +100,7 @@ jobs:
           '{
             chat_id: $chat_id, 
             text: $text, 
-            parse_mode: "MarkdownV2", 
+            parse_mode: "Markdown", 
             disable_web_page_preview: $preview
           }')
 
@@ -222,8 +222,8 @@ jobs:
         ✅ *OpenWrt 编译成功！* ✅
 
         📅 *完成时间*：$(date '+%Y-%m-%d %H:%M:%S')
-        📦 *固件名称*：OpenWrt\-Mini${{ env.DEVICE_NAME }}${{ env.FILE_DATE }}
-        🌐 *管理地址*：10\.1\.1\.1
+        📦 *固件名称*：OpenWrt-Mini${{ env.DEVICE_NAME }}${{ env.FILE_DATE }}
+        🌐 *管理地址*：10.1.1.1
         🔑 *默认密码*：无
 
         🖥️ *服务器信息*：
@@ -260,7 +260,7 @@ jobs:
           '{
             chat_id: $chat_id, 
             text: $text, 
-            parse_mode: "MarkdownV2", 
+            parse_mode: "Markdown", 
             disable_web_page_preview: $preview
           }')
 
