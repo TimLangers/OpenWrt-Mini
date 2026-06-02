@@ -76,10 +76,11 @@ jobs:
 
     - name: 发送编译开始通知（含服务器信息）
       run: |
-        read -r -d '' MSG << 'EOF' || true
+        read -r -d '' MSG << EOF || true
         🚀 *OpenWrt 编译开始* 🚀
 
         📅 *时间*：$(date '+%Y-%m-%d %H:%M:%S')
+        📦 *仓库名称*：${{ github.repository }}
         🖥️ *编译服务器信息*：
           • CPU：${{ env.CPU_MODEL }}
           • 物理数量：${{ env.CPU_PHYSICAL }}
