@@ -15,6 +15,9 @@ env:
   UPLOAD_FIRMWARE: true
   UPLOAD_RELEASE: true
   TZ: Asia/Shanghai
+  # 统一 Telegram 变量设置
+  TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+  TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
 
 jobs:
   build:
@@ -27,7 +30,7 @@ jobs:
     - name: 清理磁盘空间
       uses: jlumbroso/free-disk-space@main
       with:
-        tool-cache: true        
+        tool-cache: true       
         android: true
         dotnet: true
         haskell: true
@@ -95,7 +98,7 @@ jobs:
         EOF
 
         JSON_PAYLOAD=$(jq -n \
-          --arg chat_id "${{ secrets.TELEGRAM_CHAT_ID }}" \
+          --arg chat_id "${TELEGRAM_CHAT_ID}" \
           --arg text "$MSG" \
           --argjson preview false \
           '{
@@ -105,7 +108,7 @@ jobs:
             disable_web_page_preview: $preview
           }')
 
-        curl -s -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
+        curl -s -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
           -H "Content-Type: application/json" \
           -d "$JSON_PAYLOAD"
 
@@ -218,7 +221,6 @@ jobs:
       run: |
         if [ "${{ steps.compile.outputs.status }}" = "success" ]; then
           RELEASE_URL="https://github.com/${{ github.repository }}/releases/tag/${{ env.TAG_TIME }}"
-          
           read -r -d '' MSG << EOF || true
         ✅ *OpenWrt 编译成功！* ✅
 
@@ -234,10 +236,8 @@ jobs:
 
         🔗 [点击此处下载固件](${RELEASE_URL})
         EOF
-        
         else
           RUN_URL="https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-          
           read -r -d '' MSG << EOF || true
         ❌ *OpenWrt 编译失败！* ❌
 
@@ -255,7 +255,7 @@ jobs:
         fi
 
         JSON_PAYLOAD=$(jq -n \
-          --arg chat_id "${{ secrets.TELEGRAM_CHAT_ID }}" \
+          --arg chat_id "${TELEGRAM_CHAT_ID}" \
           --arg text "$MSG" \
           --argjson preview false \
           '{
@@ -265,7 +265,7 @@ jobs:
             disable_web_page_preview: $preview
           }')
 
-        curl -s -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
+        curl -s -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
           -H "Content-Type: application/json" \
           -d "$JSON_PAYLOAD"
 
