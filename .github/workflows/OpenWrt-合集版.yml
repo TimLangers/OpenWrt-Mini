@@ -30,7 +30,7 @@ jobs:
     - name: 清理磁盘空间
       uses: jlumbroso/free-disk-space@main
       with:
-        tool-cache: true       
+        tool-cache: true        
         android: true
         dotnet: true
         haskell: true
@@ -171,18 +171,9 @@ jobs:
       if: env.UPLOAD_FIRMWARE == 'true' && !cancelled()
       run: |
         cd openwrt/bin/targets/*/*
-        rm -rf packages && mkdir packages
-        find -name "*esxi-flat.vmdk*" | xargs -i mv -f {} packages
-        find -name "*kernel.bin*" | xargs -i mv -f {} packages
-        find -name "*rootfs*" | xargs -i mv -f {} packages
-        find -name "*.manifest*" | xargs -i mv -f {} packages
-        find -name "*vmlinuz*" | xargs -i mv -f {} packages
-        find -name "*esxi.vmdk*" | xargs -i mv -f {} packages
-        find -name "*buildinfo*" | xargs -i mv -f {} packages
-        find -name "*json*" | xargs -i mv -f {} packages
-        find -name "*sha256sums*" | xargs -i mv -f {} packages
-        rm -rf packages
-        echo "FIRMWARE=$PWD" >> $GITHUB_ENV
+        mkdir -p packages
+        find -maxdepth 1 -type f \( -name "*esxi-flat.vmdk*" -o -name "*kernel.bin*" -o -name "*rootfs*" -o -name "*.manifest*" -o -name "*vmlinuz*" -o -name "*esxi.vmdk*" -o -name "*buildinfo*" -o -name "*json*" -o -name "*sha256sums*" \) -exec mv -f {} packages/ \;
+        echo "FIRMWARE=$PWD/packages" >> $GITHUB_ENV
         echo "status=success" >> $GITHUB_OUTPUT
 
     - name: 打包上传固件
