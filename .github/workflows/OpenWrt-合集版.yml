@@ -118,6 +118,14 @@ jobs:
         git clone $REPO_URL -b $REPO_BRANCH openwrt
         ln -sf /workdir/openwrt $GITHUB_WORKSPACE/openwrt
 
+    # ========== 关键修改：将配置文件提前加载 ==========
+    - name: 加载个人设置（提前移动 .config 和 files）
+      run: |
+        [ -e files ] && mv files openwrt/files
+        [ -e $CONFIG_FILE ] && mv $CONFIG_FILE openwrt/.config
+        chmod +x $DIY_P2_SH   # 权限准备，但脚本稍后执行
+
+    # ========== 现在执行 DIY part1（此时 .config 已存在） ==========
     - name: 添加外部插件
       run: |
         [ -e $FEEDS_CONF ] && mv $FEEDS_CONF openwrt/feeds.conf.default
@@ -131,11 +139,9 @@ jobs:
     - name: 读取外部插件
       run: cd openwrt && ./scripts/feeds install -a
 
-    - name: 加载个人设置
+    # ========== 执行 DIY part2（此时 feeds 已更新） ==========
+    - name: 执行 diy-part2.sh
       run: |
-        [ -e files ] && mv files openwrt/files
-        [ -e $CONFIG_FILE ] && mv $CONFIG_FILE openwrt/.config
-        chmod +x $DIY_P2_SH
         cd openwrt
         $GITHUB_WORKSPACE/$DIY_P2_SH
 
@@ -174,15 +180,20 @@ jobs:
       if: (!cancelled())
       run: df -hT
 
-    # 打包整理固件（包含 .apk 和 .img.gz）
+    # 打包整理固件（使用更健壮的查找方式）
     - name: 打包整理固件
       id: organize
-      if: env.UPLOAD_FIRMWARE == 'true' && !cancelled()
+      if: env.UPLOAD_FIRMWARE == 'true' && steps.compile.outputs.status == 'success' && !cancelled()
       run: |
-        cd openwrt/bin/targets/*/*
+        cd openwrt
+        TARGET_DIR=$(find bin/targets -mindepth 2 -maxdepth 2 -type d | head -1)
+        if [ -z "$TARGET_DIR" ]; then
+          echo "❌ 未找到固件输出目录，编译可能失败"
+          exit 1
+        fi
+        cd "$TARGET_DIR"
         mkdir -p packages
-        find -maxdepth 1 -type f \( -name "*esxi-flat.vmdk*" -o -name "*kernel.bin*" -o -name "*rootfs*" -o -name "*.manifest*" -o -name "*vmlinuz*" -o -name "*esxi.vmdk*" -o -name "*buildinfo*" -o -name "*json*" -o -name "*sha256sums*" -o -name "*.img.gz" \) -exec mv -f {} packages/ \;
-        find . -name "*.apk" -exec cp -f {} packages/ \;
+        find . -maxdepth 1 -type f \( -name "*.img.gz" -o -name "*.bin" -o -name "*.apk" -o -name "*.vmdk" -o -name "*.qcow2" -o -name "*.tar.gz" -o -name "*.ext4.gz" \) -exec mv -f {} packages/ \;
         echo "FIRMWARE=$PWD/packages" >> $GITHUB_ENV
         echo "status=success" >> $GITHUB_OUTPUT
 
@@ -195,7 +206,7 @@ jobs:
 
     - name: 创建发布标签
       id: tag
-      if: env.UPLOAD_RELEASE == 'true' && !cancelled()
+      if: env.UPLOAD_RELEASE == 'true' && steps.organize.outputs.status == 'success' && !cancelled()
       run: |
         echo "release_tag=${{ env.TAG_TIME }}" >> $GITHUB_OUTPUT
         cat > release.txt <<EOF
@@ -217,12 +228,11 @@ jobs:
         body_path: release.txt
         files: ${{ env.FIRMWARE }}/*
 
-    # 修复后的 Telegram 通知（使用 printf 代替 heredoc，避免语法错误）
     - name: 发送编译结果通知 (Telegram)
       if: always()
       run: |
         if [ "${{ steps.compile.outputs.status }}" = "success" ]; then
-          RELEASE_URL="https://github.com/${{ github.repository }}/releases/tag/${{ env.TAG_TIME }}"
+          RELEASE_URL="https://github.com/${{ github.repository }}/releases/tag/${{ steps.tag.outputs.release_tag }}"
           MSG=$(printf "✅ *OpenWrt 编译成功！* ✅\n\n📅 *完成时间*：%s\n📦 *固件名称*：%s\n🌐 *管理地址*：10.1.1.1\n🔑 *默认密码*：无\n\n🖥️ *服务器信息*：\n  • CPU：%s\n  • 核心数：%s\n  • 内存：%s\n\n🔗 [点击此处下载固件](%s)" \
             "$(date '+%Y-%m-%d %H:%M:%S')" \
             "OpenWrt-Mini${{ env.DEVICE_NAME }}${{ env.FILE_DATE }}" \
