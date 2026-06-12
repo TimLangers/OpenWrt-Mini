@@ -8,40 +8,25 @@ echo "=== 正在执行 DIY 优化脚本 part2 ==="
 # 1. 修改默认管理 IP 为 10.1.1.1
 sed -i 's/192.168.1.1/10.1.1.1/g' package/base-files/files/bin/config_generate
 
-# 2. 移除不需要的 openhtml/opentomact 主题源码（防止编译进固件）
-rm -rf feeds/luci/themes/luci-theme-opentomact 2>/dev/null
-rm -rf package/feeds/luci/themes/luci-theme-opentomact 2>/dev/null
+# 2. 移除不需要的 opentomact 主题源码（防止编译进固件，路径不存在时静默跳过）
+rm -rf feeds/luci/themes/luci-theme-opentomact 2>/dev/null || true
+rm -rf package/feeds/luci/themes/luci-theme-opentomact 2>/dev/null || true
 
 # 3. 强制设置 Argon 为默认主题
 sed -i 's/luci-theme-bootstrap/luci-theme-argon/g' feeds/luci/collections/luci/Makefile
 
-# ==================== 以下为额外优化（可选，不影响核心功能）====================
-
-# 4. 移除其他不需要的主题（减小固件体积）
-# 如果只想保留 Argon，可以取消下面注释
-# rm -rf feeds/luci/themes/luci-theme-bootstrap
-# rm -rf feeds/luci/themes/luci-theme-material
-# rm -rf feeds/luci/themes/luci-theme-openwrt-2020
-
-# 5. 设置 Argon 主题为默认并配置一些参数（如果 argon 配置包存在）
-if [ -f "package/luci-app-argon-config/Makefile" ] || [ -d "feeds/luci/applications/luci-app-argon-config" ]; then
-    # 创建 uci-defaults 脚本以在首次启动时应用 Argon 设置
-    mkdir -p package/base-files/files/etc/uci-defaults
-    cat > package/base-files/files/etc/uci-defaults/99-argon-settings << 'EOF'
+# ==================== 可选：确保 Argon 主题存在（如果通过 feeds 安装则无需手动处理） ====================
+# 如果 Argon 主题是通过 feeds 安装的，以下代码可确保它在启动时被设为默认
+mkdir -p package/base-files/files/etc/uci-defaults
+cat > package/base-files/files/etc/uci-defaults/99-argon-default << 'EOF'
 #!/bin/sh
-# 设置 Argon 主题为默认
-uci set luci.main.mediaurlbase='/luci-static/argon'
-uci commit luci
+# 设置 Argon 为默认主题（如果尚未设置）
+if ! uci get luci.main.mediaurlbase >/dev/null 2>&1; then
+    uci set luci.main.mediaurlbase='/luci-static/argon'
+    uci commit luci
+fi
 exit 0
 EOF
-    chmod +x package/base-files/files/etc/uci-defaults/99-argon-settings
-    echo "✓ Argon 主题默认配置已添加"
-fi
-
-# 6. 调整默认语言为中文（如果存在中文包）
-if grep -q "luci-i18n-base-zh-cn" tmp/.config-package.in 2>/dev/null; then
-    sed -i 's/option lang auto/option lang zh-cn/g' package/base-files/files/etc/config/luci 2>/dev/null || true
-    echo "✓ 默认语言已设置为中文"
-fi
+chmod +x package/base-files/files/etc/uci-defaults/99-argon-default
 
 echo "=== DIY part2 脚本执行完成 ==="
