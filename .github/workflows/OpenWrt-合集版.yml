@@ -15,7 +15,6 @@ env:
   UPLOAD_FIRMWARE: true
   UPLOAD_RELEASE: true
   TZ: Asia/Shanghai
-  # 统一 Telegram 变量设置
   TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
   TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
 
@@ -140,6 +139,15 @@ jobs:
         cd openwrt
         $GITHUB_WORKSPACE/$DIY_P2_SH
 
+    # ➕ 加上缓存步骤：缓存下载的 dl 依赖库，大幅度加速后续编译流程
+    - name: 缓存 OpenWrt dl 目录
+      uses: actions/cache@v4
+      with:
+        path: openwrt/dl
+        key: ${{ runner.os }}-openwrt-dl-${{ hashFiles('openwrt/feeds.conf.default', 'openwrt/.config') }}
+        restore-keys: |
+          ${{ runner.os }}-openwrt-dl-
+
     - name: 下载固件dL库
       id: package
       run: |
@@ -166,13 +174,17 @@ jobs:
       if: (!cancelled())
       run: df -hT
 
+    # 🔄 优化打包逻辑：确保收集固件的同时，也收集所有的 .apk 安装包
     - name: 打包整理固件
       id: organize
       if: env.UPLOAD_FIRMWARE == 'true' && !cancelled()
       run: |
         cd openwrt/bin/targets/*/*
         mkdir -p packages
-        find -maxdepth 1 -type f \( -name "*esxi-flat.vmdk*" -o -name "*kernel.bin*" -o -name "*rootfs*" -o -name "*.manifest*" -o -name "*vmlinuz*" -o -name "*esxi.vmdk*" -o -name "*buildinfo*" -o -name "*json*" -o -name "*sha256sums*" \) -exec mv -f {} packages/ \;
+        # 移入固件和引导文件
+        find -maxdepth 1 -type f \( -name "*esxi-flat.vmdk*" -o -name "*kernel.bin*" -o -name "*rootfs*" -o -name "*.manifest*" -o -name "*vmlinuz*" -o -name "*esxi.vmdk*" -o -name "*buildinfo*" -o -name "*json*" -o -name "*sha256sums*" -o -name "*.img.gz" \) -exec mv -f {} packages/ \;
+        # 💡 同时把同级目录或子目录下的所有 .apk 文件也复制到 packages 归档目录中
+        find . -name "*.apk" -exec cp -f {} packages/ \;
         echo "FIRMWARE=$PWD/packages" >> $GITHUB_ENV
         echo "status=success" >> $GITHUB_OUTPUT
 
@@ -205,7 +217,7 @@ jobs:
         name: ${{ env.FILE_TIME }} -OpenWrt-6.12-合集版
         tag_name: ${{ steps.tag.outputs.release_tag }}
         body_path: release.txt
-        files: ${{ env.FIRMWARE }}/*
+        files: ${{ env.FIRMWARE }}/* # 这里的 /* 会把 packages 文件夹里的所有文件（包含新加入的 .apk）全部送上 Release 附件！
 
     - name: 发送编译结果通知 (Telegram)
       if: always()
@@ -213,36 +225,36 @@ jobs:
         if [ "${{ steps.compile.outputs.status }}" = "success" ]; then
           RELEASE_URL="https://github.com/${{ github.repository }}/releases/tag/${{ env.TAG_TIME }}"
           read -r -d '' MSG << EOF || true
-        ✅ *OpenWrt 编译成功！* ✅
+          ✅ *OpenWrt 编译成功！* ✅
 
-        📅 *完成时间*：$(date '+%Y-%m-%d %H:%M:%S')
-        📦 *固件名称*：OpenWrt-Mini${{ env.DEVICE_NAME }}${{ env.FILE_DATE }}
-        🌐 *管理地址*：10.1.1.1
-        🔑 *默认密码*：无
+          📅 *完成时间*：$(date '+%Y-%m-%d %H:%M:%S')
+          📦 *固件名称*：OpenWrt-Mini${{ env.DEVICE_NAME }}${{ env.FILE_DATE }}
+          🌐 *管理地址*：10.1.1.1
+          🔑 *默认密码*：无
 
-        🖥️ *服务器信息*：
-          • CPU：${{ env.CPU_MODEL }}
-          • 核心数：${{ env.CPU_CORES }}
-          • 内存：${{ env.MEM_INFO }}
+          🖥️ *服务器信息*：
+            • CPU：${{ env.CPU_MODEL }}
+            • 核心数：${{ env.CPU_CORES }}
+            • 内存：${{ env.MEM_INFO }}
 
-        🔗 [点击此处下载固件](${RELEASE_URL})
-        EOF
+          🔗 [点击此处下载固件](${RELEASE_URL})
+          EOF
         else
           RUN_URL="https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
           read -r -d '' MSG << EOF || true
-        ❌ *OpenWrt 编译失败！* ❌
+          ❌ *OpenWrt 编译失败！* ❌
 
-        📅 *时间*：$(date '+%Y-%m-%d %H:%M:%S')
-        📦 *配置文件*：${{ env.CONFIG_FILE }}
-        🔧 *源码分支*：${{ env.REPO_BRANCH }}
+          📅 *时间*：$(date '+%Y-%m-%d %H:%M:%S')
+          📦 *配置文件*：${{ env.CONFIG_FILE }}
+          🔧 *源码分支*：${{ env.REPO_BRANCH }}
 
-        🖥️ *最后使用的服务器信息*：
-          • CPU：${{ env.CPU_MODEL }}
-          • 核心数：${{ env.CPU_CORES }}
-          • 内存：${{ env.MEM_INFO }}
+          🖥️ *最后使用的服务器信息*：
+            • CPU：${{ env.CPU_MODEL }}
+            • 核心数：${{ env.CPU_CORES }}
+            • 内存：${{ env.MEM_INFO }}
 
-        ⚠️ [点击查看 Actions 错误日志](${RUN_URL})
-        EOF
+          ⚠️ [点击查看 Actions 错误日志](${RUN_URL})
+          EOF
         fi
 
         JSON_PAYLOAD=$(jq -n \
