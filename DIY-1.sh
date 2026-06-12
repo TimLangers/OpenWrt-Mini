@@ -5,19 +5,18 @@ set -e
 
 echo "=== 正在执行 DIY 优化脚本 part1 ==="
 
-# ==================== 关键：确保 .config 存在且架构正确 ====================
+# ==================== 确保 .config 存在（可选）====================
 if [ ! -f .config ]; then
     echo "⚠️ 未检测到 .config 文件，正在生成默认配置..."
     make defconfig
 fi
 
-# 强制架构防护
+# ==================== 架构检查（改为仅警告）====================
 echo "=== 检查架构配置 ==="
 if grep -q "CONFIG_TARGET_x86_64=y" .config; then
     echo "✓ 架构检测通过：当前为 x86_64"
 else
-    echo "⚠️ 严重警告：检测到当前架构不是 x86_64！正在强制停止..."
-    exit 1
+    echo "⚠️ 警告：.config 中未启用 x86_64，可能导致编译失败（若目标平台非 x86_64 可忽略）"
 fi
 
 # ==================== 修改 LAN IP ====================
@@ -34,15 +33,17 @@ fi
 # ==================== 防火墙与 LuCI 修复（保留 Argon） ====================
 sed -i 's/"iptables"/"iptables-nft"/g' feeds/luci/modules/luci-base/root/usr/share/rpcd/acl.d/luci-base.json 2>/dev/null || true
 
-# ==================== 克隆外部软件包（注意：如果 feeds 中已有，请勿重复） ====================
-# 建议先从 feeds 中移除原有同名包，或者在 feeds.conf.default 中直接添加以下源：
-# src-git openclash https://github.com/vernesong/OpenClash.git
-# src-git argon https://github.com/jerrykuku/luci-theme-argon.git
-# src-git argonconfig https://github.com/jerrykuku/luci-app-argon-config.git
-# 如果坚持手动 clone，请确保 feeds.conf.default 中没有对应的源，否则会冲突
-git clone -b master https://github.com/vernesong/OpenClash.git package/luci-app-openclash
-git clone https://github.com/jerrykuku/luci-theme-argon.git package/luci-theme-argon
-git clone https://github.com/jerrykuku/luci-app-argon-config.git package/luci-app-argon-config
+# ==================== 外部插件（建议通过 feeds.conf.default 添加，而非手动 clone）====================
+# 若您已在 feeds.conf.default 中添加了以下源，请勿重复 clone，否则会造成冲突
+# 推荐在 feeds.conf.default 中添加：
+#   src-git openclash https://github.com/vernesong/OpenClash.git
+#   src-git argon https://github.com/jerrykuku/luci-theme-argon.git
+#   src-git argonconfig https://github.com/jerrykuku/luci-app-argon-config.git
+#
+# 如需手动 clone，请取消下方注释：
+# git clone -b master https://github.com/vernesong/OpenClash.git package/luci-app-openclash
+# git clone https://github.com/jerrykuku/luci-theme-argon.git package/luci-theme-argon
+# git clone https://github.com/jerrykuku/luci-app-argon-config.git package/luci-app-argon-config
 
 # ==================== uci-defaults 设置 ====================
 mkdir -p package/base-files/files/etc/uci-defaults
