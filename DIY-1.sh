@@ -5,18 +5,18 @@ set -e
 
 echo "=== 正在执行 DIY 优化脚本 part1 ==="
 
-# ==================== 确保 .config 存在（可选）====================
+# ==================== 确保 .config 存在（可选） ====================
 if [ ! -f .config ]; then
     echo "⚠️ 未检测到 .config 文件，正在生成默认配置..."
     make defconfig
 fi
 
-# ==================== 架构检查（改为仅警告）====================
+# ==================== 架构检查（改为仅警告，不退出） ====================
 echo "=== 检查架构配置 ==="
 if grep -q "CONFIG_TARGET_x86_64=y" .config; then
     echo "✓ 架构检测通过：当前为 x86_64"
 else
-    echo "⚠️ 警告：.config 中未启用 x86_64，可能导致编译失败（若目标平台非 x86_64 可忽略）"
+    echo "⚠️ 警告：.config 中未启用 x86_64，若目标平台非 x86_64 可忽略此警告"
 fi
 
 # ==================== 修改 LAN IP ====================
@@ -30,17 +30,11 @@ if [ -f "package/custom/sing-box/Makefile" ]; then
     sed -i '/^GO_PKG_LDFLAGS_X/a GO_PKG_VARS:=GOGC=50 CGO_ENABLED=0' package/custom/sing-box/Makefile
 fi
 
-# ==================== 防火墙与 LuCI 修复（保留 Argon） ====================
+# ==================== 防火墙与 LuCI 修复 ====================
 sed -i 's/"iptables"/"iptables-nft"/g' feeds/luci/modules/luci-base/root/usr/share/rpcd/acl.d/luci-base.json 2>/dev/null || true
 
-# ==================== 外部插件（建议通过 feeds.conf.default 添加，而非手动 clone）====================
-# 若您已在 feeds.conf.default 中添加了以下源，请勿重复 clone，否则会造成冲突
-# 推荐在 feeds.conf.default 中添加：
-#   src-git openclash https://github.com/vernesong/OpenClash.git
-#   src-git argon https://github.com/jerrykuku/luci-theme-argon.git
-#   src-git argonconfig https://github.com/jerrykuku/luci-app-argon-config.git
-#
-# 如需手动 clone，请取消下方注释：
+# ==================== 外部插件（推荐使用 feeds 添加，避免手动 clone 冲突） ====================
+# 如需手动 clone，请取消下方注释，并确保 feeds.conf.default 中没有重复的 src-git 行
 # git clone -b master https://github.com/vernesong/OpenClash.git package/luci-app-openclash
 # git clone https://github.com/jerrykuku/luci-theme-argon.git package/luci-theme-argon
 # git clone https://github.com/jerrykuku/luci-app-argon-config.git package/luci-app-argon-config
