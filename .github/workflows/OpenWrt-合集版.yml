@@ -9,7 +9,7 @@ env:
   REPO_URL: https://github.com/openwrt/openwrt.git
   REPO_BRANCH: openwrt-25.12
   FEEDS_CONF: feeds.conf.default
-  CONFIG_FILE: OK2.config
+  CONFIG_FILE: .config
   DIY_P1_SH: DIY-1.sh
   DIY_P2_SH: DIY-2.sh
   UPLOAD_FIRMWARE: true
