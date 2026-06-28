@@ -19,9 +19,6 @@ else
     echo "⚠️ 警告：.config 中未启用 x86_64，若目标平台非 x86_64 可忽略此警告"
 fi
 
-# ==================== 修改 LAN IP ====================
-sed -i 's/192.168.1.1/10.1.1.1/g' package/base-files/files/bin/config_generate
-
 # ==================== 修复 Golang 编译路径 ====================
 find feeds/packages -name "Makefile" -type f | xargs -i sed -i 's#../../lang/golang/#$(TOPDIR)/feeds/packages/lang/golang/#g' {} 2>/dev/null || true
 
@@ -33,13 +30,7 @@ fi
 # ==================== 防火墙与 LuCI 修复 ====================
 sed -i 's/"iptables"/"iptables-nft"/g' feeds/luci/modules/luci-base/root/usr/share/rpcd/acl.d/luci-base.json 2>/dev/null || true
 
-# ==================== 外部插件（推荐使用 feeds 添加，避免手动 clone 冲突） ====================
-# 如需手动 clone，请取消下方注释，并确保 feeds.conf.default 中没有重复的 src-git 行
-# git clone -b master https://github.com/vernesong/OpenClash.git package/luci-app-openclash
-# git clone https://github.com/jerrykuku/luci-theme-argon.git package/luci-theme-argon
-# git clone https://github.com/jerrykuku/luci-app-argon-config.git package/luci-app-argon-config
-
-# ==================== uci-defaults 设置 ====================
+# ==================== uci-defaults 系统设置 ====================
 mkdir -p package/base-files/files/etc/uci-defaults
 cat > package/base-files/files/etc/uci-defaults/99-custom-settings << 'EOF'
 #!/bin/sh
