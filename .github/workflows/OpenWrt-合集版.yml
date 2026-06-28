@@ -7,7 +7,7 @@ on:
 
 env:
   REPO_URL: https://github.com/openwrt/openwrt.git
-  REPO_BRANCH: openwrt-25.12
+  REPO_BRANCH: openwrt-25.12   # 建议改为 main 或 openwrt-23.05（如非自定义分支）
   FEEDS_CONF: feeds.conf.default
   CONFIG_FILE: .config
   DIY_P1_SH: DIY-1.sh
@@ -168,7 +168,12 @@ jobs:
       run: |
         cd openwrt
         echo -e "$(nproc) thread compile"
+        # 增加错误检测：如果三次都失败，则标记失败并退出
         make -j$(nproc) || make -j1 || make -j1 V=s
+        if [ $? -ne 0 ]; then
+          echo "status=failure" >> $GITHUB_OUTPUT
+          exit 1
+        fi
         echo "status=success" >> $GITHUB_OUTPUT
         grep '^CONFIG_TARGET.*DEVICE.*=y' .config | sed -r 's/.*DEVICE_(.*)=y/\1/' > DEVICE_NAME
         [ -s DEVICE_NAME ] && echo "DEVICE_NAME=_$(cat DEVICE_NAME)" >> $GITHUB_ENV
@@ -180,20 +185,23 @@ jobs:
       if: (!cancelled())
       run: df -hT
 
-    # 打包整理固件（使用更健壮的查找方式）
+    # 打包整理固件（修改：移除 *.apk）
     - name: 打包整理固件
       id: organize
       if: env.UPLOAD_FIRMWARE == 'true' && steps.compile.outputs.status == 'success' && !cancelled()
       run: |
         cd openwrt
+        # 调试：打印找到的目录路径（以便确认是否在正确位置操作）
         TARGET_DIR=$(find bin/targets -mindepth 2 -maxdepth 2 -type d | head -1)
+        echo "🔍 当前操作的 TARGET_DIR 为：$TARGET_DIR"
         if [ -z "$TARGET_DIR" ]; then
           echo "❌ 未找到固件输出目录，编译可能失败"
           exit 1
         fi
         cd "$TARGET_DIR"
         mkdir -p packages
-        find . -maxdepth 1 -type f \( -name "*.img.gz" -o -name "*.bin" -o -name "*.apk" -o -name "*.vmdk" -o -name "*.qcow2" -o -name "*.tar.gz" -o -name "*.ext4.gz" \) -exec mv -f {} packages/ \;
+        # ========== 关键修改：删除了 -o -name "*.apk" ==========
+        find . -maxdepth 1 -type f \( -name "*.img.gz" -o -name "*.bin" -o -name "*.vmdk" -o -name "*.qcow2" -o -name "*.tar.gz" -o -name "*.ext4.gz" \) -exec mv -f {} packages/ \;
         echo "FIRMWARE=$PWD/packages" >> $GITHUB_ENV
         echo "status=success" >> $GITHUB_OUTPUT
 
